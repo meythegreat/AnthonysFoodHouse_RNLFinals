@@ -31,5 +31,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings/bulk', [SettingController::class, 'updateBulk']);
 
+    Route::post('/logout', function (\Illuminate\Http\Request $request) {
+        // Revoke the current user's token
+        $request->user()->currentAccessToken()->delete();
+        return response()->json(['message' => 'Successfully logged out']);
+    });
+
     // We will add the POS, Menu, and Inventory routes here later!
 });

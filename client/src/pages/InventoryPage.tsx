@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from '../services/axiosConfig';
 import MainLayout from '../layouts/MainLayout';
 import { useToast } from '../context/ToastContext';
+import { Search, Plus, Edit2, Trash2, Package, AlertTriangle, AlertOctagon, Loader2, PackageX, ImageOff, ImagePlus, Minus, X } from 'lucide-react';
 
 type InventoryItem = {
   id: number;
@@ -173,7 +174,7 @@ export default function InventoryPage() {
          
          <div className="flex items-center gap-3 w-full md:w-auto">
            <div className="relative flex-1 md:w-64">
-             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
              <input 
                type="text" 
                placeholder="Search inventory..." 
@@ -183,7 +184,7 @@ export default function InventoryPage() {
              />
            </div>
            <button onClick={openAddModal} className="bg-green-600 text-white font-bold px-5 py-2.5 rounded-full shadow-md hover:bg-green-700 transition-all text-sm shrink-0 flex items-center gap-2 active:scale-95 transform">
-             <span>➕</span> Add Stock Item
+             <Plus className="w-4 h-4" /> Add Stock Item
            </button>
          </div>
       </div>
@@ -193,7 +194,7 @@ export default function InventoryPage() {
         {/* Prototype Summary Dashboard Cards Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex items-center gap-4">
-            <span className="text-3xl bg-blue-50 p-3 rounded-xl">📦</span>
+            <div className="text-blue-600 bg-blue-50 p-3 rounded-xl"><Package className="w-8 h-8" /></div>
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Items</p>
               <h3 className="text-2xl font-black text-gray-800 mt-0.5">{isLoading ? '...' : totalItemsCount}</h3>
@@ -201,7 +202,9 @@ export default function InventoryPage() {
           </div>
 
           <div className={`bg-white p-5 rounded-2xl border flex items-center gap-4 transition-all ${lowStockCount > 0 ? 'border-yellow-200 bg-linear-to-tr from-white to-yellow-50/30' : 'border-gray-100'}`}>
-            <span className="text-3xl bg-yellow-50 p-3 rounded-xl">⚠️</span>
+            <div className={`p-3 rounded-xl ${lowStockCount > 0 ? 'text-yellow-600 bg-yellow-50' : 'text-gray-400 bg-gray-50'}`}>
+              <AlertTriangle className="w-8 h-8" />
+            </div>
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Low Stock Alerts</p>
               <h3 className={`text-2xl font-black mt-0.5 ${lowStockCount > 0 ? 'text-yellow-600' : 'text-gray-800'}`}>{isLoading ? '...' : lowStockCount}</h3>
@@ -209,7 +212,9 @@ export default function InventoryPage() {
           </div>
 
           <div className={`bg-white p-5 rounded-2xl border flex items-center gap-4 transition-all ${outOfStockCount > 0 ? 'border-red-200 bg-linear-to-tr from-white to-red-50/30' : 'border-gray-100'}`}>
-            <span className="text-3xl bg-red-50 p-3 rounded-xl">🚨</span>
+            <div className={`p-3 rounded-xl ${outOfStockCount > 0 ? 'text-red-600 bg-red-50' : 'text-gray-400 bg-gray-50'}`}>
+              <AlertOctagon className="w-8 h-8" />
+            </div>
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Out of Stock</p>
               <h3 className={`text-2xl font-black mt-0.5 ${outOfStockCount > 0 ? 'text-red-600' : 'text-gray-800'}`}>{isLoading ? '...' : outOfStockCount}</h3>
@@ -245,12 +250,13 @@ export default function InventoryPage() {
           <div className="divide-y divide-gray-100">
             {isLoading ? (
                <div className="flex flex-col items-center justify-center p-20 text-gray-400">
-                 <svg className="animate-spin h-8 w-8 text-green-500 mb-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                 <Loader2 className="w-8 h-8 animate-spin text-green-500 mb-3" />
                  <p className="font-medium text-sm">Loading pantry blueprints...</p>
                </div>
             ) : filteredItems.length === 0 ? (
-               <div className="p-20 text-center text-gray-400 font-medium">
-                 <span className="text-4xl block mb-2">📦</span> No items found matching these selections.
+               <div className="flex flex-col items-center justify-center p-20 text-center text-gray-400 font-medium">
+                 <PackageX className="w-12 h-12 mb-3 text-gray-300" />
+                 <p>No items found matching these selections.</p>
                </div>
             ) : (
               filteredItems.map(item => {
@@ -272,7 +278,7 @@ export default function InventoryPage() {
                       {item.image_path ? (
                         <img src={`http://localhost:8000/storage/${item.image_path}`} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-xl">📦</span>
+                        <ImageOff className="w-5 h-5 text-gray-300" />
                       )}
                     </div>
 
@@ -305,9 +311,9 @@ export default function InventoryPage() {
                       <div className="hidden lg:flex items-center bg-gray-50/80 p-1 rounded-xl border border-gray-100 shadow-inner">
                         <button 
                           onClick={() => adjustStock(item, -1)} 
-                          className="w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-red-500 hover:border-red-200 font-bold text-sm transition-all flex items-center justify-center active:scale-95 shadow-xs"
+                          className="w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-red-500 hover:border-red-200 font-bold transition-all flex items-center justify-center active:scale-95 shadow-xs"
                         >
-                          -
+                          <Minus className="w-4 h-4" />
                         </button>
                         
                         <div className="w-16 text-center mx-1">
@@ -317,19 +323,19 @@ export default function InventoryPage() {
                         
                         <button 
                           onClick={() => adjustStock(item, 1)} 
-                          className="w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-200 font-bold text-sm transition-all flex items-center justify-center active:scale-95 shadow-xs"
+                          className="w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-200 font-bold transition-all flex items-center justify-center active:scale-95 shadow-xs"
                         >
-                          +
+                          <Plus className="w-4 h-4" />
                         </button>
                       </div>
                       
                       {/* Primary CRUD Buttons */}
                       <div className="flex items-center gap-1.5 w-full md:w-auto justify-end">
                         <button onClick={() => openEditModal(item)} className="p-2 rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:text-blue-600 shadow-xs active:scale-95 transition-transform">
-                          ✏️
+                          <Edit2 className="w-4 h-4" />
                         </button>
                         <button onClick={() => handleDeleteItem(item.id)} className="p-2 rounded-xl border border-gray-200 bg-white hover:border-red-300 hover:text-red-600 shadow-xs active:scale-95 transition-transform">
-                          🗑️
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
 
@@ -342,9 +348,9 @@ export default function InventoryPage() {
                       <div className="flex items-center gap-3">
                         <button 
                           onClick={() => adjustStock(item, -1)} 
-                          className="w-9 h-9 rounded-xl border border-gray-200 bg-white text-gray-500 font-bold text-base flex items-center justify-center active:scale-95 shadow-xs"
+                          className="w-9 h-9 rounded-xl border border-gray-200 bg-white text-gray-500 font-bold flex items-center justify-center active:scale-95 shadow-xs"
                         >
-                          -
+                          <Minus className="w-4 h-4" />
                         </button>
                         
                         <div className="w-20 text-center">
@@ -354,9 +360,9 @@ export default function InventoryPage() {
                         
                         <button 
                           onClick={() => adjustStock(item, 1)} 
-                          className="w-9 h-9 rounded-xl border border-gray-200 bg-white text-gray-500 font-bold text-base flex items-center justify-center active:scale-95 shadow-xs"
+                          className="w-9 h-9 rounded-xl border border-gray-200 bg-white text-gray-500 font-bold flex items-center justify-center active:scale-95 shadow-xs"
                         >
-                          +
+                          <Plus className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -373,24 +379,26 @@ export default function InventoryPage() {
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity cursor-pointer"
-          onClick={() => setIsModalOpen(false)} // <-- WIRED UP: Clicking backdrop closes form modal sheet
+          onClick={() => setIsModalOpen(false)} 
         >
           <form 
             onSubmit={handleFormSubmit} 
-            onClick={(e) => e.stopPropagation()} // <-- WIRED UP: Disables click bubbling inside form
+            onClick={(e) => e.stopPropagation()} 
             className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh] cursor-default"
           >
             
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
               <h2 className="text-xl font-black text-gray-800 capitalize">{modalMode} Inventory Item</h2>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold">✕</button>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="space-y-4">
               {/* Picture Upload Element */}
               <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <div className="w-20 h-20 rounded-xl bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
-                  {imagePreview ? <img src={imagePreview} alt="" className="w-full h-full object-cover" /> : <span className="text-3xl">📷</span>}
+                  {imagePreview ? <img src={imagePreview} alt="" className="w-full h-full object-cover" /> : <ImagePlus className="w-8 h-8 text-gray-300" />}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Item Picture</label>
@@ -401,20 +409,20 @@ export default function InventoryPage() {
               {/* Input Name field */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Ingredient / Supply Name</label>
-                <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden" placeholder="e.g. White Rice Bag" />
+                <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all" placeholder="e.g. White Rice Bag" />
               </div>
 
               {/* Grid Metadata Controls */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Category</label>
-                  <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden">
+                  <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all">
                     {INVENTORY_CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Measurement Unit</label>
-                  <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden">
+                  <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all">
                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -423,11 +431,11 @@ export default function InventoryPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Initial Quantity</label>
-                  <input type="number" step="0.01" required value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden" />
+                  <input type="number" step="0.01" required value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Low-Stock Alert Qty</label>
-                  <input type="number" step="0.01" required value={formData.low_stock_threshold} onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden" />
+                  <input type="number" step="0.01" required value={formData.low_stock_threshold} onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })} className="w-full p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-medium outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all" />
                 </div>
               </div>
             </div>
