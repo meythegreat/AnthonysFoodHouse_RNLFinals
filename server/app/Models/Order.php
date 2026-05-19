@@ -20,4 +20,12 @@ class Order extends Model
         'payment_method',
         'status'
     ];
+
+    /**
+     * Get the items associated with the order.
+     */
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
 }

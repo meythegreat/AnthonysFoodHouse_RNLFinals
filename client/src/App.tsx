@@ -8,6 +8,7 @@ import { TableProvider } from './context/TableContext'; // <-- Import
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import KitchenPage from './pages/KitchenPage';
 
 export default function App() {
   return (
@@ -46,6 +47,12 @@ export default function App() {
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['Admin']}>
                 <SettingsPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/kitchen" element={
+              <ProtectedRoute allowedRoles={['Admin', 'Kitchen Staff']}>
+                <KitchenPage />
               </ProtectedRoute>
             } />
 

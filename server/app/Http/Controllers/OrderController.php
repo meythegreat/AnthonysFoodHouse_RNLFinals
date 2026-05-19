@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    // --- 1. POS Checkout: Create Order ---
     public function store(Request $request)
     {
-        // 1. Validate the incoming React data
         $validated = $request->validate([
             'cart' => 'required|array|min:1',
             'cart.*.id' => 'required|exists:products,id',
@@ -24,13 +24,11 @@ class OrderController extends Controller
         ]);
 
         try {
-            // 2. Start the database transaction
             $order = DB::transaction(function () use ($validated, $request) {
 
                 $subTotal = 0;
                 $orderItemsData = [];
 
-                // 3. Loop through cart, fetch REAL prices from DB, and calculate
                 foreach ($validated['cart'] as $item) {
                     $product = Product::find($item['id']);
                     $itemTotal = $product->price * $item['quantity'];
@@ -44,12 +42,11 @@ class OrderController extends Controller
                     ];
                 }
 
-                $tax = $subTotal * 0.05; // 5% tax
+                $tax = $subTotal * 0.05;
                 $totalAmount = $subTotal + $tax;
 
-                // 4. Create the main Order record
                 $order = Order::create([
-                    'user_id' => $request->user()->id, // The logged-in cashier
+                    'user_id' => $request->user()->id,
                     'table_number' => $validated['table_number'] ?? 'Table 1',
                     'customer_name' => $validated['customer_name'] ?? 'Walk-in',
                     'order_type' => $validated['order_type'],
@@ -57,7 +54,8 @@ class OrderController extends Controller
                     'sub_total' => $subTotal,
                     'tax' => $tax,
                     'total_amount' => $totalAmount,
-                    'status' => 'Completed',
+                    // FIX: Changed from 'Completed' to 'Pending' so the kitchen sees it
+                    'status' => 'Pending',
                 ]);
 
                 $table = \App\Models\Table::where('name', $validated['table_number'])->first();
@@ -65,7 +63,6 @@ class OrderController extends Controller
                     $table->update(['status' => 'Waiting']);
                 }
 
-                // 5. Attach the items to the order using the relationship ID
                 foreach ($orderItemsData as $data) {
                     $data['order_id'] = $order->id;
                     OrderItem::create($data);
@@ -76,11 +73,88 @@ class OrderController extends Controller
 
             return response()->json([
                 'message' => 'Payment Success!',
-                'order_id' => str_pad($order->id, 8, '0', STR_PAD_LEFT) // Formats as 00000012
+                'order_id' => str_pad($order->id, 8, '0', STR_PAD_LEFT)
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json(['message' => 'Order failed to process.', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    // --- 2. KDS: Fetch Live Orders for Kitchen ---
+    public function activeOrders()
+    {
+        // Eager load the items and their associated products to get the names
+        $orders = Order::with('items.product')
+            ->whereIn('status', ['Pending', 'Preparing', 'Ready'])
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($order) {
+                // Map your relational OrderItems back into the 'cart' array format React expects
+                $cart = $order->items->map(function ($item) {
+                    return [
+                        'id' => $item->product_id,
+                        'name' => $item->product ? $item->product->name : 'Unknown Item',
+                        'quantity' => $item->quantity,
+                    ];
+                });
+
+                return [
+                    'id' => $order->id,
+                    'table_number' => $order->table_number,
+                    'customer_name' => $order->customer_name,
+                    'order_type' => $order->order_type,
+                    'status' => $order->status,
+                    'created_at' => $order->created_at,
+                    'cart' => $cart,
+                ];
+            });
+
+        return response()->json($orders);
+    }
+
+    // --- 3. KDS: Update Order Status & Sync Table Services ---
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|string|in:Pending,Preparing,Ready,Served,Completed'
+        ]);
+
+        $order = Order::findOrFail($id);
+        $order->status = $request->status;
+        $order->save();
+
+        // ==========================================
+        // THE BRIDGE: Sync KDS with Table Services
+        // ==========================================
+        // Only trigger table updates for Dine In customers
+        if ($order->order_type === 'Dine In' && $order->table_number && $order->table_number !== 'Walk-in') {
+
+            // Find the specific table the customer is sitting at
+            $table = \App\Models\Table::where('name', $order->table_number)->first();
+
+            if ($table) {
+                // Change the table's status based on what the Kitchen clicked
+                switch ($request->status) {
+                    case 'Preparing':
+                        // Kitchen started cooking
+                        $table->update(['status' => 'Cooking']);
+                        break;
+                    case 'Ready':
+                        // Alert the waiters! The food is hot and waiting on the counter
+                        $table->update(['status' => 'Food Ready']);
+                        break;
+                    case 'Served':
+                        // Waiter cleared the ticket, customers are currently eating
+                        $table->update(['status' => 'Dining']);
+                        break;
+                    case 'Completed':
+                        // Customers paid and left, table needs cleaning
+                        $table->update(['status' => 'Available']);
+                        break;
+                }
+            }
+        }
+
+        return response()->json(['message' => 'Order and Table statuses synced successfully.']);
     }
 }

@@ -19,6 +19,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
+    Route::get('/orders/active', [OrderController::class, 'activeOrders']);
+    Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
     Route::patch('/tables/{id}/status', [TableController::class, 'updateStatus']);
     Route::get('/tables', [TableController::class, 'index']);
     Route::patch('/inventory/{id}/stock', [InventoryController::class, 'updateStock']);

@@ -4,7 +4,7 @@ import { useTable } from '../context/TableContext';
 import { useToast } from '../context/ToastContext';
 import axios from '../services/axiosConfig';
 import logo from '../assets/anthonys-logo.png';
-import { Utensils, ClipboardList, Package, Users, BarChart3, Settings, LogOut, Menu, X } from 'lucide-react';
+import { Utensils, ClipboardList, Package, Users, BarChart3, Settings, LogOut, Menu, X, ChefHat } from 'lucide-react';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -74,6 +74,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
             <button onClick={() => { navigate('/settings'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/settings')}>
               <Settings className="w-5 h-5 shrink-0" /> <span className="font-bold">Settings</span>
             </button>
+
+            {(role === 'Admin' || role === 'Kitchen Staff') && (
+              <button onClick={() => { navigate('/kitchen'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/kitchen')}>
+                <ChefHat className="w-5 h-5 shrink-0" /> <span className="font-bold">Kitchen Display</span>
+              </button>
+            )}
           </>
         )}
       </>
