@@ -7,6 +7,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class OrderController extends Controller
 {
@@ -24,21 +25,32 @@ class OrderController extends Controller
         ]);
 
         try {
-            $order = DB::transaction(function () use ($validated, $request) {
+            $orderItemsData = [];
+
+            $result = DB::transaction(function () use ($validated, $request, &$orderItemsData) {
 
                 $subTotal = 0;
-                $orderItemsData = [];
 
                 foreach ($validated['cart'] as $item) {
+
                     $product = Product::find($item['id']);
+
                     $itemTotal = $product->price * $item['quantity'];
+
                     $subTotal += $itemTotal;
 
                     $orderItemsData[] = [
+
                         'product_id' => $product->id,
+
+                        'name' => $product->name,
+
                         'quantity' => $item['quantity'],
+
                         'price' => $product->price,
+
                         'sub_total' => $itemTotal,
+
                     ];
                 }
 
@@ -86,8 +98,36 @@ class OrderController extends Controller
                     }
                 } // <--- Notice the closing brace is now down here!
 
-                return $order;
+                return [
+                    'order' => $order,
+                    'items' => $orderItemsData
+                ];
             });
+
+            $order = $result['order'];
+
+            Http::post('http://127.0.0.1:5678/webhook-test/8cdb04f2-6067-47e9-b8af-ffe8d453e192', [ //Group Workflow
+                'order_id' => $order->id,
+                'customer' => $order->customer_name,
+                'sub_total' => number_format($order->sub_total, 2, '.', ''),
+                'tax' => number_format($order->tax, 2, '.', ''),
+                'total' => number_format($order->total_amount, 2, '.', ''),
+                'payment_method' => $order->payment_method,
+                'status' => $order->status,
+                'items' => $orderItemsData
+            ]);
+
+            Http::post('http://localhost:5678/webhook-test/41a22261-8226-4aee-ad3a-16384c3d1e83', [ // Basinillo Individual Workflow
+                'order_id' => $order->id,
+                'customer' => $order->customer_name,
+                'sub_total' => number_format($order->sub_total, 2, '.', ''),
+                'tax' => number_format($order->tax, 2, '.', ''),
+                'total' => number_format($order->total_amount, 2, '.', ''),
+                'payment_method' => $order->payment_method,
+                'status' => $order->status,
+                'items' => $orderItemsData,
+                'date' => now()->format('F d, Y h:i A')
+            ]);
 
             return response()->json([
                 'message' => 'Payment Success!',
