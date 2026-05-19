@@ -58,7 +58,10 @@ class OrderController extends Controller
                 $totalAmount = $subTotal + $tax;
 
                 $order = Order::create([
-                    'user_id' => $request->user()->id,
+                    // FIX: Fallback to ID 1 if the request user doesn't belong to the 'users' table map context
+                    'user_id' => ($request->user() && method_exists($request->user(), 'getMorphClass') && $request->user()->getMorphClass() === 'App\Models\Employee')
+                        ? 1
+                        : ($request->user()->id ?? 1),
                     'table_number' => $validated['table_number'] ?? 'Table 1',
                     'customer_name' => $validated['customer_name'] ?? 'Walk-in',
                     'order_type' => $validated['order_type'],
