@@ -175,4 +175,82 @@ class OrderController extends Controller
 
         return response()->json(['message' => 'Order and Table statuses synced successfully.']);
     }
+
+    // --- 4. HISTORY: Fetch Recent Orders for Cashier ---
+    public function history()
+    {
+        // Fetch the 50 most recent orders so the cashier can review or reprint receipts
+        $orders = Order::with('items.product')
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(function ($order) {
+                // Map it to the exact structure your ReceiptModal expects
+                $cart = $order->items->map(function ($item) {
+                    return [
+                        'id' => $item->product_id,
+                        'name' => $item->product ? $item->product->name : 'Unknown Item',
+                        'quantity' => $item->quantity,
+                        'price' => $item->price,
+                    ];
+                });
+
+                return [
+                    'id' => $order->id,
+                    'table_number' => $order->table_number,
+                    'customer_name' => $order->customer_name,
+                    'order_type' => $order->order_type,
+                    'payment_method' => $order->payment_method,
+                    'sub_total' => $order->sub_total,
+                    'tax' => $order->tax,
+                    'total_amount' => $order->total_amount,
+                    'status' => $order->status,
+                    'created_at' => $order->created_at,
+                    'cart' => $cart,
+                    // Assume the user attached is the cashier
+                    'cashierName' => 'Terminal Operator'
+                ];
+            });
+
+        return response()->json($orders);
+    }
+
+    // --- 5. REFUND: Cancel Order & Restore Inventory ---
+    public function refund(int $id)
+    {
+        $order = Order::with('items')->findOrFail($id);
+
+        if ($order->status === 'Cancelled') {
+            return response()->json(['message' => 'This order is already cancelled.'], 400);
+        }
+
+        // 1. Restore the inventory items
+        foreach ($order->items as $item) {
+            $recipes = \App\Models\Recipe::where('product_id', $item->product_id)->get();
+
+            foreach ($recipes as $recipe) {
+                $inventoryItem = \App\Models\InventoryItem::find($recipe->inventory_item_id);
+                if ($inventoryItem) {
+                    // Add the stock BACK into the pantry
+                    $amountToRestore = $recipe->quantity_required * $item->quantity;
+                    $inventoryItem->quantity += $amountToRestore;
+                    $inventoryItem->save();
+                }
+            }
+        }
+
+        // 2. Mark order as cancelled
+        $order->status = 'Cancelled';
+        $order->save();
+
+        // 3. If it was tied to a table, free the table
+        if ($order->order_type === 'Dine In' && $order->table_number !== 'Walk-in') {
+            $table = \App\Models\Table::where('name', $order->table_number)->first();
+            if ($table) {
+                $table->update(['status' => 'Available']);
+            }
+        }
+
+        return response()->json(['message' => 'Order refunded and inventory restored.']);
+    }
 }

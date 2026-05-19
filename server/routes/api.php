@@ -36,6 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/settings/bulk', [SettingController::class, 'updateBulk']);
     Route::get('/analytics/summary', [AnalyticsController::class, 'getDashboardStats']);
     Route::patch('/tables/{id}/reset', [\App\Http\Controllers\TableController::class, 'reset']);
+    Route::get('/orders/history', [\App\Http\Controllers\OrderController::class, 'history']);
+    Route::post('/orders/{id}/refund', [\App\Http\Controllers\OrderController::class, 'refund']);
 
     Route::post('/logout', function (\Illuminate\Http\Request $request) {
         // Revoke the current user's token

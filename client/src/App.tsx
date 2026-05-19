@@ -9,6 +9,7 @@ import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import KitchenPage from './pages/KitchenPage';
+import OrderHistoryPage from './pages/OrderHistoryPage';
 
 export default function App() {
   return (
@@ -53,6 +54,12 @@ export default function App() {
             <Route path="/kitchen" element={
               <ProtectedRoute allowedRoles={['Admin', 'Kitchen Staff']}>
                 <KitchenPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/history" element={
+              <ProtectedRoute allowedRoles={['Admin', 'Cashier', 'Manager']}>
+                <OrderHistoryPage />
               </ProtectedRoute>
             } />
 
