@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import axios from '../services/axiosConfig';
 import MainLayout from '../layouts/MainLayout';
 import { useToast } from '../context/ToastContext';
@@ -131,25 +131,41 @@ export default function InventoryPage() {
     }
   };
 
-  const adjustStock = async (item: InventoryItem, adjustment: number) => {
+  // --- 1. The Debounce Timer Memory ---
+  // This stores a unique countdown timer for every individual item ID
+  const debounceTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
+  // --- 2. The Optimized Adjust Stock Function ---
+  const adjustStock = (item: InventoryItem, adjustment: number) => {
+    // Calculate what the new quantity should be (preventing negative numbers)
     const newQty = Math.max(0, Number(item.quantity) + adjustment);
     
-    // Real-Time Stock Level Status Threshold Notifications
+    // OPTIMISTIC UI: Update the React state instantly so the user sees the number change immediately
+    setItems(items.map(i => i.id === item.id ? { ...i, quantity: newQty } : i));
+
+    // Optional: Trigger instant alerts if they hit critical thresholds
     if (newQty === 0) {
       showToast(`${item.name} is now completely OUT OF STOCK!`, 'error');
-    } else if (newQty <= item.low_stock_threshold) {
+    } else if (newQty > 0 && newQty <= item.low_stock_threshold) {
       showToast(`${item.name} stock level is running critically low!`, 'warning');
     }
 
-    // Optimistic UI update
-    setItems(items.map(i => i.id === item.id ? { ...i, quantity: newQty } : i));
-
-    try {
-      await axios.patch(`/api/inventory/${item.id}/stock`, { quantity: newQty });
-    } catch (error) {
-      showToast('Failed to sync stock alteration.', 'error');
-      fetchInventory();
+    // DEBOUNCING: If the user clicks again before 800ms, cancel the previous countdown
+    if (debounceTimers.current[item.id]) {
+      clearTimeout(debounceTimers.current[item.id]);
     }
+
+    // Start a new 800ms countdown. When it hits zero, send ONE request to Laravel.
+    debounceTimers.current[item.id] = setTimeout(async () => {
+      try {
+        await axios.patch(`/api/inventory/${item.id}/stock`, { quantity: newQty });
+        // We do NOT show a toast here, otherwise the user would get spammed 800ms after they stop clicking.
+      } catch (error) {
+        showToast('Failed to sync stock alteration to database.', 'error');
+        // REVERT: If the server request fails, fetch the true inventory from Laravel to fix the numbers on screen
+        fetchInventory(); 
+      }
+    }, 800);
   };
 
   // Summary Metrics calculations

@@ -115,7 +115,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                   if (isCurrent) statusStyles += ' ring-4 ring-green-600/20 border-green-600 shadow-md';
 
                   return (
-                    <div key={table.id} className="relative group min-h-[120px] flex flex-col">
+                    <div key={table.id} className="relative group min-h-30 flex flex-col">
                       <button
                         type="button"
                         onClick={() => { setSelectedTable(table.name); setIsTableModalOpen(false); }}

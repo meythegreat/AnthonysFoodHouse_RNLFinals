@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::post('/inventory', [InventoryController::class, 'store']);
     Route::post('/inventory/{id}', [InventoryController::class, 'updateItem']); // Update (Using POST for handling uploads cleanly)
+    Route::patch('/inventory/{id}/stock', [InventoryController::class, 'update']);
     Route::delete('/inventory/{id}', [InventoryController::class, 'destroy']); // Delete
     Route::apiResource('employees', EmployeeController::class);
     Route::get('/analytics/summary', [ReportController::class, 'getAnalyticsSummary']);
