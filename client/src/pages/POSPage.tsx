@@ -7,6 +7,7 @@ import {
   Search, LayoutGrid, Flame, UtensilsCrossed, Soup, Coffee, ShoppingCart, 
   ImageOff, Plus, Minus, X as CloseIcon, Banknote, CreditCard, QrCode, ChevronRight 
 } from 'lucide-react';
+import ReceiptModal from '../components/ReceiptModal';
 
 type Category = { id: number; name: string; itemCount: number; icon: React.ReactNode };
 type Product = {
@@ -28,6 +29,9 @@ const CATEGORIES: Category[] = [
 ];
 
 export default function POSPage() {
+  const [storeSettings, setStoreSettings] = useState<Record<string, string>>({});
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [completedOrderData, setCompletedOrderData] = useState<any>(null);
   const { showToast } = useToast();
   const { selectedTable, guestName, setTableStatusByName, setIsTableModalOpen } = useTable();
 
@@ -55,6 +59,7 @@ export default function POSPage() {
         if (settingsRes.data && settingsRes.data.tax_rate) {
           const parsedRate = parseFloat(settingsRes.data.tax_rate) / 100;
           setLiveTaxRate(parsedRate);
+          setStoreSettings(settingsRes.data);
         }
       } catch (error) {
         showToast('Failed to sync POS configuration environment.', 'error');
@@ -92,6 +97,11 @@ export default function POSPage() {
   const handleCheckout = async () => {
     if (cart.length === 0) return showToast('Your transactional cart is empty!', 'warning');
     setIsCheckingOut(true);
+    
+    // Get the logged-in cashier's name from localStorage
+    const empData = localStorage.getItem('employee');
+    const cashierName = empData ? JSON.parse(empData).name : 'Terminal Operator';
+
     try {
       await axios.get('/sanctum/csrf-cookie');
       await axios.post('/api/orders', {
@@ -102,10 +112,22 @@ export default function POSPage() {
         customer_name: guestName || 'Walk-in',
       });
       
-      showToast(`Order logged successfully for ${selectedTable}!`, 'success');
+      // 1. Save a snapshot of the order details BEFORE clearing the cart
+      setCompletedOrderData({
+        cart: [...cart],
+        subTotal, tax, total, liveTaxRate, orderType, paymentMethod,
+        tableNumber: selectedTable, guestName: guestName || 'Walk-in', cashierName
+      });
+
+      // 2. Open the receipt
+      setIsReceiptOpen(true);
+      
+      // 3. Reset the background POS UI for the next customer
       setTableStatusByName(selectedTable, 'Waiting');
       setCart([]);
       setIsMobileCartOpen(false);
+      showToast(`Order logged successfully!`, 'success');
+
     } catch (error: any) {
       showToast(error.response?.data?.message || 'Failed to process checkout line.', 'error');
     } finally {
@@ -357,6 +379,14 @@ export default function POSPage() {
         </div>
 
       </div>
+
+      <ReceiptModal 
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+        orderData={completedOrderData}
+        storeSettings={storeSettings}
+      />
+      
     </MainLayout>
   );
 }

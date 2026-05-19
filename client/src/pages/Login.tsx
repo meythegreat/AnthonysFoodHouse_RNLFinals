@@ -23,6 +23,7 @@ export default function Login() {
       
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
+        localStorage.setItem('employee', JSON.stringify(response.data.employee));
       }
 
       showToast('Authentication successful. Welcome back!', 'success');
@@ -57,7 +58,7 @@ export default function Login() {
             </span>
           </h1>
           <p className="text-gray-300 text-lg font-medium leading-relaxed max-w-md">
-            Welcome to the official management terminal for Anthony's Food House. Access the POS, manage inventory, and review daily analytics.
+            Welcome to the official management terminal for Anthony's Food House by Ledesma.
           </p>
         </div>
       </div>
@@ -86,24 +87,26 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-semibold text-gray-800 outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all placeholder:text-gray-400"
-                  placeholder="admin@anthonys.com"
+                  placeholder="Input email address here"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Secure Password
+                4-Digit Access PIN
               </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input 
                   type="password" 
                   required
+                  maxLength={4}
+                  inputMode="numeric"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-semibold text-gray-800 outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all placeholder:text-gray-400"
-                  placeholder="••••••••"
+                  onChange={(e) => setPassword(e.target.value.replace(/\D/g, ''))}
+                  className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl bg-gray-50/50 text-sm font-semibold text-gray-800 outline-hidden focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 transition-all placeholder:text-gray-400 tracking-[0.25em]"
+                  placeholder="••••"
                 />
               </div>
             </div>
@@ -114,7 +117,7 @@ export default function Login() {
                 <span className="text-xs font-semibold text-gray-500 group-hover:text-gray-700 transition-colors">Remember me</span>
               </label>
               <button type="button" className="text-xs font-bold text-green-600 hover:text-green-700 transition-colors">
-                Forgot password?
+                Forgot PIN?
               </button>
             </div>
 

@@ -36,36 +36,49 @@ export default function MainLayout({ children }: MainLayoutProps) {
       : "flex items-center gap-3 text-left text-gray-500 font-semibold py-3.5 px-4 rounded-xl hover:bg-green-50 hover:text-green-700 transition-colors";
   };
 
-  const NavigationLinks = () => (
-    <>
-      <button onClick={() => { navigate('/pos'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/pos')}>
-        <Utensils className="w-5 h-5 shrink-0" /> <span className="font-bold">POS Menu</span>
-      </button>
-      
-      <button 
-        onClick={() => { setIsTableModalOpen(true); setIsMobileSidebarOpen(false); }}
-        className="flex items-center gap-3 text-left text-gray-500 font-semibold py-3.5 px-4 rounded-xl hover:bg-green-50 hover:text-green-700 transition-colors"
-      >
-        <ClipboardList className="w-5 h-5 shrink-0" /> <span className="font-bold">Table Services</span>
-      </button>
-      
-      <button onClick={() => { navigate('/inventory'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/inventory')}>
-        <Package className="w-5 h-5 shrink-0" /> <span className="font-bold">Inventory</span>
-      </button>
+  const NavigationLinks = () => {
+    // Safely parse the logged-in employee's role
+    const employeeData = localStorage.getItem('employee');
+    const role = employeeData ? JSON.parse(employeeData).role : '';
+    const isAdmin = role === 'Admin';
 
-      <button onClick={() => { navigate('/employees'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/employees')}>
-        <Users className="w-5 h-5 shrink-0" /> <span className="font-bold">Employees</span>
-      </button>
+    return (
+      <>
+        {/* EVERYONE sees POS and Tables */}
+        <button onClick={() => { navigate('/pos'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/pos')}>
+          <Utensils className="w-5 h-5 shrink-0" /> <span className="font-bold">POS Menu</span>
+        </button>
+        
+        <button 
+          onClick={() => { setIsTableModalOpen(true); setIsMobileSidebarOpen(false); }}
+          className="flex items-center gap-3 text-left text-gray-500 font-semibold py-3.5 px-4 rounded-xl hover:bg-green-50 hover:text-green-700 transition-colors"
+        >
+          <ClipboardList className="w-5 h-5 shrink-0" /> <span className="font-bold">Table Services</span>
+        </button>
+        
+        {/* ONLY ADMINS see these links */}
+        {isAdmin && (
+          <>
+            <button onClick={() => { navigate('/inventory'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/inventory')}>
+              <Package className="w-5 h-5 shrink-0" /> <span className="font-bold">Inventory</span>
+            </button>
 
-      <button onClick={() => { navigate('/reports'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/reports')}>
-        <BarChart3 className="w-5 h-5 shrink-0" /> <span className="font-bold">Reports</span>
-      </button>
+            <button onClick={() => { navigate('/employees'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/employees')}>
+              <Users className="w-5 h-5 shrink-0" /> <span className="font-bold">Employees</span>
+            </button>
 
-      <button onClick={() => { navigate('/settings'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/settings')}>
-        <Settings className="w-5 h-5 shrink-0" /> <span className="font-bold">Settings</span>
-      </button>
-    </>
-  );
+            <button onClick={() => { navigate('/reports'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/reports')}>
+              <BarChart3 className="w-5 h-5 shrink-0" /> <span className="font-bold">Reports</span>
+            </button>
+
+            <button onClick={() => { navigate('/settings'); setIsMobileSidebarOpen(false); }} className={getLinkStyle('/settings')}>
+              <Settings className="w-5 h-5 shrink-0" /> <span className="font-bold">Settings</span>
+            </button>
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans relative overflow-hidden text-gray-800">
@@ -88,7 +101,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
             <span className="group-hover:-translate-x-1 transition-transform">
               <LogOut className="w-5 h-5" />
             </span> 
-            Secure Logout
+            Logout
           </button>
         </div>
       </div>
@@ -119,7 +132,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
             <span className="group-hover:-translate-x-1 transition-transform">
               <LogOut className="w-5 h-5" />
             </span> 
-            Secure Logout
+            Logout
           </button>
         </div>
       </div>

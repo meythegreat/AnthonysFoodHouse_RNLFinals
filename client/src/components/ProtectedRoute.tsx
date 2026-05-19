@@ -1,27 +1,37 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth, type UserRole } from '../context/AuthContext';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
+import { useEffect } from 'react';
 
 interface ProtectedRouteProps {
-  allowedRoles?: UserRole[];
+  children: React.ReactNode;
+  allowedRoles: string[];
 }
 
-export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, hasRole } = useAuth();
+export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { showToast } = useToast();
+  const location = useLocation();
+  
+  const token = localStorage.getItem('token');
+  const employeeData = localStorage.getItem('employee');
 
-  if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>; // Replace with a spinner later
+  // 1. If they have no token at all, kick them to the login screen
+  if (!token || !employeeData) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (!isAuthenticated) {
-    // Not logged in? Kick them back to the login page
-    return <Navigate to="/login" replace />;
-  }
+  const employee = JSON.parse(employeeData);
 
-  if (allowedRoles && !hasRole(allowedRoles)) {
-    // Logged in, but wrong role? Send them to the POS menu
+  // 2. If they are logged in, but their role isn't allowed on this page, bounce them
+  if (!allowedRoles.includes(employee.role)) {
+    // We use a useEffect to show the toast without disrupting the React render cycle
+    useEffect(() => {
+      showToast('Security Clearance Denied: You do not have access to this module.', 'error');
+    }, []);
+    
+    // Kick them back to the POS screen (which everyone has access to)
     return <Navigate to="/pos" replace />;
   }
 
-  // If they pass the checks, render the requested page
-  return <Outlet />;
+  // 3. If they pass all checks, render the page!
+  return <>{children}</>;
 }

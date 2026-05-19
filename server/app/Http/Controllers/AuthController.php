@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -9,23 +10,29 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required'
         ]);
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
+        $employee = Employee::where('email', $request->email)->first();
 
-            return response()->json([
-                'message' => 'Logged in successfully',
-                'user' => Auth::user()
-            ]);
+        // If you don't see this exact line in your file, you are running the old code!
+        if (!$employee || $employee->pin !== $request->password) {
+            return response()->json(['message' => 'Invalid email or access PIN.'], 401);
         }
 
+        if ($employee->status === 'Inactive') {
+            return response()->json(['message' => 'This account has been deactivated.'], 403);
+        }
+
+        $token = $employee->createToken('pos-terminal-access')->plainTextToken;
+
         return response()->json([
-            'message' => 'The provided credentials do not match our records.'
-        ], 401);
+            'message' => 'Login successful',
+            'token' => $token,
+            'employee' => $employee
+        ]);
     }
 
     public function logout(Request $request)
