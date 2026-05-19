@@ -44,7 +44,7 @@ export default function ReceiptModal({ isOpen, onClose, orderData, storeSettings
         
         <div className="p-6 overflow-y-auto flex-1 text-gray-800 font-mono text-sm print:p-0">
           <div className="text-center mb-6 flex flex-col items-center">
-            <img src={logo} alt="Store Logo" className="w-16 h-16 object-contain mb-3 drop-shadow-xs print:grayscale print:contrast-125 print:drop-shadow-none" />
+            {/* <img src={logo} alt="Store Logo" className="w-16 h-16 object-contain mb-3 drop-shadow-xs print:grayscale print:contrast-125 print:drop-shadow-none" /> */}
             <h2 className="text-xl font-black uppercase tracking-widest">{storeSettings.store_name || 'Anthony\'s Food House'}</h2>
             <p className="text-xs text-gray-500 mt-1 whitespace-pre-line">{storeSettings.store_address || '123 Culinary Ave\nFlavor Town'}</p>
             <p className="text-xs text-gray-500">Tel: {storeSettings.store_phone || '+63 900 000 0000'}</p>

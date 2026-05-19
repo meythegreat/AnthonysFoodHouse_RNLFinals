@@ -27,13 +27,11 @@ export default function OrderHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReprintOrder, setSelectedReprintOrder] = useState<Order | null>(null);
-  
-  // NEW: State to hold the actual store identity settings
   const [storeSettings, setStoreSettings] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchHistory();
-    fetchSettings(); // Fetch settings when the page loads
+    fetchSettings();
   }, []);
 
   const fetchHistory = async () => {
@@ -47,7 +45,6 @@ export default function OrderHistoryPage() {
     }
   };
 
-  // NEW: Fetch the settings from your backend
   const fetchSettings = async () => {
     try {
       const response = await axios.get('/api/settings'); 
@@ -73,7 +70,7 @@ export default function OrderHistoryPage() {
     try {
       await axios.post(`/api/orders/${orderId}/refund`);
       showToast(`Order #${orderId} has been successfully refunded.`, 'success');
-      fetchHistory(); // Refresh the list to show the 'Cancelled' status
+      fetchHistory(); 
     } catch (error: any) {
       showToast(error.response?.data?.message || 'Failed to process refund.', 'error');
     }
@@ -190,6 +187,7 @@ export default function OrderHistoryPage() {
                       )}
                     </div>
                   </div>
+
                 </div>
               </div>
             ))
@@ -197,7 +195,7 @@ export default function OrderHistoryPage() {
         </div>
       </div>
 
-      {/* Render the unified Receipt Modal with REAL store settings */}
+      {/* Render the unified Receipt Modal */}
       <ReceiptModal 
         isOpen={!!selectedReprintOrder}
         onClose={() => setSelectedReprintOrder(null)}
