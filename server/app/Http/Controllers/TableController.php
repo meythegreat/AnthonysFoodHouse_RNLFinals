@@ -33,4 +33,18 @@ class TableController extends Controller
             'table' => $table
         ]);
     }
+
+    // Wipes a table clean when guests leave
+    // FIX: Added 'int' to the $id parameter to satisfy Intelephense
+    public function reset(int $id)
+    {
+        $table = Table::findOrFail($id);
+        $table->status = 'Available';
+        $table->save();
+
+        return response()->json([
+            'message' => "{$table->name} has been cleaned and is ready for the next guest.",
+            'table' => $table
+        ]);
+    }
 }

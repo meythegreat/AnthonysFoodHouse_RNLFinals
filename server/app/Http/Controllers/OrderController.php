@@ -66,7 +66,25 @@ class OrderController extends Controller
                 foreach ($orderItemsData as $data) {
                     $data['order_id'] = $order->id;
                     OrderItem::create($data);
-                }
+
+                    // ==========================================
+                    // THE AUTO-DEDUCTION ENGINE
+                    // ==========================================
+                    // Find all recipe requirements for this specific product
+                    $recipes = \App\Models\Recipe::where('product_id', $data['product_id'])->get();
+
+                    foreach ($recipes as $recipe) {
+                        $inventoryItem = \App\Models\InventoryItem::find($recipe->inventory_item_id);
+                        if ($inventoryItem) {
+                            // Calculate total deduction: (Recipe Requirement * Quantity Sold)
+                            $totalDeduction = $recipe->quantity_required * $data['quantity'];
+
+                            // Prevent negative stock, bottom out at 0
+                            $inventoryItem->quantity = max(0, $inventoryItem->quantity - $totalDeduction);
+                            $inventoryItem->save();
+                        }
+                    }
+                } // <--- Notice the closing brace is now down here!
 
                 return $order;
             });
@@ -113,7 +131,7 @@ class OrderController extends Controller
     }
 
     // --- 3. KDS: Update Order Status & Sync Table Services ---
-    public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request, int $id)
     {
         $request->validate([
             'status' => 'required|string|in:Pending,Preparing,Ready,Served,Completed'

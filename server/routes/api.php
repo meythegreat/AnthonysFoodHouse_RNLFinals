@@ -9,6 +9,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\AnalyticsController;
 
 // Public route (anyone can try to log in)
 Route::post('/login', [AuthController::class, 'login']);
@@ -33,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/analytics/summary', [ReportController::class, 'getAnalyticsSummary']);
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings/bulk', [SettingController::class, 'updateBulk']);
+    Route::get('/analytics/summary', [AnalyticsController::class, 'getDashboardStats']);
+    Route::patch('/tables/{id}/reset', [\App\Http\Controllers\TableController::class, 'reset']);
 
     Route::post('/logout', function (\Illuminate\Http\Request $request) {
         // Revoke the current user's token
