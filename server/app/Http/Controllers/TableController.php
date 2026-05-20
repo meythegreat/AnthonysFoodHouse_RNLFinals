@@ -17,7 +17,7 @@ class TableController extends Controller
     public function updateStatus(Request $request, string $id)
     {
         $validated = $request->validate([
-            'status' => 'required|in:Available,Waiting,Done'
+            'status' => 'required|in:Available,Waiting,Cooking,Food Ready,Dining,Reserved,Occupied'
         ]);
 
         // Find the table row or throw a graceful 404 response framework

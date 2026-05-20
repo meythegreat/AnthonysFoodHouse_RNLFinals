@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { useTable } from '../context/TableContext';
 import axios from '../services/axiosConfig';
 import logo from '../assets/anthonys-logo.png';
 import { Mail, Lock, Loader2 } from 'lucide-react';
@@ -8,6 +9,7 @@ import { Mail, Lock, Loader2 } from 'lucide-react';
 export default function Login() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { refreshTables } = useTable();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +26,8 @@ export default function Login() {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('employee', JSON.stringify(response.data.employee));
       }
+
+      await refreshTables();
 
       showToast('Authentication successful. Welcome back!', 'success');
       navigate('/pos');

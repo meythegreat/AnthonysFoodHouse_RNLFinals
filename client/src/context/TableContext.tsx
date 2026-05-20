@@ -3,17 +3,31 @@ import axios from '../services/axiosConfig';
 import { useToast } from './ToastContext';
 import { X, User, Armchair, CheckCircle, Utensils } from 'lucide-react';
 
-type TableStatus = 'Available' | 'Waiting' | 'Done';
+type TableStatus = 'Available' | 'Waiting' | 'Cooking' | 'Food Ready' | 'Dining' | 'Reserved' | 'Occupied';
 type TableData = { id: number; name: string; status: TableStatus };
+
+function isActiveTableStatus(status: string): boolean {
+  return status !== 'Available';
+}
+
+function isReadyToServe(status: string): boolean {
+  return status === 'Food Ready';
+}
+
+function isInService(status: string): boolean {
+  return ['Waiting', 'Cooking', 'Dining', 'Occupied', 'Reserved'].includes(status);
+}
 
 interface TableContextType {
   tables: TableData[];
   selectedTable: string;
   guestName: string;
   isTableModalOpen: boolean;
+  isLoadingTables: boolean;
   setSelectedTable: (name: string) => void;
   setGuestName: (name: string) => void;
   setIsTableModalOpen: (open: boolean) => void;
+  refreshTables: () => Promise<void>;
   updateTableStatus: (tableId: number, newStatus: TableStatus) => Promise<void>;
   setTableStatusByName: (tableName: string, newStatus: TableStatus) => void;
 }
@@ -23,22 +37,35 @@ const TableContext = createContext<TableContextType | undefined>(undefined);
 export function TableProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const [tables, setTables] = useState<TableData[]>([]);
+  const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string>('Table 1');
   const [guestName, setGuestName] = useState<string>('Walk-in');
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchTables();
-  }, []);
+  const fetchTables = useCallback(async () => {
+    if (!localStorage.getItem('token')) return;
 
-  const fetchTables = async () => {
+    setIsLoadingTables(true);
     try {
       const response = await axios.get<TableData[]>('/api/tables');
       setTables(response.data);
     } catch (error) {
       console.error('Failed to load tables', error);
+      showToast('Could not load tables. Please try again.', 'error');
+    } finally {
+      setIsLoadingTables(false);
     }
-  };
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchTables();
+  }, [fetchTables]);
+
+  useEffect(() => {
+    if (isTableModalOpen) {
+      fetchTables();
+    }
+  }, [isTableModalOpen, fetchTables]);
 
   const updateTableStatus = async (tableId: number, newStatus: TableStatus) => {
     try {
@@ -55,9 +82,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <TableContext.Provider value={{
-      tables, selectedTable, guestName, isTableModalOpen,
+      tables, selectedTable, guestName, isTableModalOpen, isLoadingTables,
       setSelectedTable, setGuestName, setIsTableModalOpen,
-      updateTableStatus, setTableStatusByName
+      refreshTables: fetchTables, updateTableStatus, setTableStatusByName
     }}>
       {children}
 
@@ -105,12 +132,17 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
              {/* Table Selection Grid Matrices */}
              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">Select Dining Floor Target</label>
              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[40vh] overflow-y-auto pr-1 pb-2 scrollbar-hide">
+                {isLoadingTables && tables.length === 0 ? (
+                  <p className="col-span-full text-center text-sm font-medium text-gray-400 py-8">Loading tables…</p>
+                ) : tables.length === 0 ? (
+                  <p className="col-span-full text-center text-sm font-medium text-gray-400 py-8">No tables found. Run database seeders or sign in again.</p>
+                ) : null}
                 {tables.map(table => {
                   const isCurrent = selectedTable === table.name;
                   
                   let statusStyles = 'border-gray-100 bg-white text-gray-500 hover:border-green-300';
-                  if (table.status === 'Waiting') statusStyles = 'border-yellow-400 bg-yellow-50/30 text-yellow-700 hover:bg-yellow-50/60';
-                  if (table.status === 'Done') statusStyles = 'border-green-500 bg-green-50/30 text-green-700 hover:bg-green-50/60';
+                  if (isInService(table.status)) statusStyles = 'border-yellow-400 bg-yellow-50/30 text-yellow-700 hover:bg-yellow-50/60';
+                  if (isReadyToServe(table.status)) statusStyles = 'border-green-500 bg-green-50/30 text-green-700 hover:bg-green-50/60';
 
                   if (isCurrent) statusStyles += ' ring-4 ring-green-600/20 border-green-600 shadow-md';
 
@@ -122,8 +154,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         className={`w-full flex-1 p-4 rounded-2xl font-bold border-2 transition-all flex flex-col items-center justify-center gap-1.5 overflow-hidden ${statusStyles}`}
                       >
                         {/* Dynamic Floating Visual Status Dots */}
-                        {table.status !== 'Available' && (
-                          <span className={`absolute top-3 right-3 w-2 h-2 rounded-full ${table.status === 'Waiting' ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
+                        {isActiveTableStatus(table.status) && (
+                          <span className={`absolute top-3 right-3 w-2 h-2 rounded-full ${isReadyToServe(table.status) ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></span>
                         )}
                         
                         <Armchair className="w-5 h-5 text-current opacity-80" />
@@ -132,16 +164,16 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                       </button>
 
                       {/* Interactive Action Control Badges over Buttons */}
-                      {table.status === 'Waiting' && (
+                      {isInService(table.status) && (
                         <button 
                           type="button" 
-                          onClick={(e) => { e.stopPropagation(); updateTableStatus(table.id, 'Done'); }} 
+                          onClick={(e) => { e.stopPropagation(); updateTableStatus(table.id, 'Food Ready'); }} 
                           className="absolute bottom-2.5 left-1/2 transform -translate-x-1/2 bg-yellow-500 hover:bg-yellow-600 text-white text-[9px] uppercase font-black px-3 py-1 rounded-lg shadow-md active:scale-95 transition-all flex items-center gap-1 border border-yellow-600/10 tracking-wider"
                         >
-                          <Utensils className="w-2.5 h-2.5" /> Serve
+                          <Utensils className="w-2.5 h-2.5" /> Ready
                         </button>
                       )}
-                      {table.status === 'Done' && (
+                      {isReadyToServe(table.status) && (
                         <button 
                           type="button" 
                           onClick={(e) => { e.stopPropagation(); updateTableStatus(table.id, 'Available'); }} 

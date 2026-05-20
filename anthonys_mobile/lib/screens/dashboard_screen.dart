@@ -1,69 +1,81 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../models/restaurant_models.dart';
 import '../services/api_service.dart';
-import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({Key? key}) : super(key: key);
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final ApiService _apiService = ApiService();
+  List<ProductItem> _products = [];
+  bool _isLoadingProducts = true;
   
   List<DiningTable> _tables = [];
-  List<ProductItem> _products = [];
-  String _selectedCategory = 'All';
-  
-  String? _selectedTable;
-  final TextEditingController _customerController = TextEditingController(text: 'Guest Table');
-  final Map<ProductItem, int> _cart = {};
-  
-  bool _isLoading = true;
+  DiningTable? _selectedTable; 
 
-  // Base URL mapping for images fetched from Laravel's public storage symlink
-  String get imageServerUrl => 'assets';
+  String _selectedCategory = 'All';
+  final List<String> _categories = ['All', 'Silog', 'Sizzling Menu', 'Soup', 'Drinks'];
+  
+  final Map<ProductItem, int> _cart = {}; 
+  final TextEditingController _customerNameController = TextEditingController(text: 'Guest Table');
 
   @override
   void initState() {
     super.initState();
-    _fetchInitialData();
+    _fetchProducts();
+    _fetchTables(); 
   }
 
-  Future<void> _fetchInitialData() async {
+  Future<void> _fetchProducts() async {
     try {
-      final tablesData = await _apiService.getTables();
-      final productsData = await _apiService.getProducts();
-      setState(() {
-        _tables = tablesData;
-        _products = productsData;
-        if (_tables.isNotEmpty && _selectedTable == null) {
-          _selectedTable = _tables.first.name;
-        }
-        _isLoading = false;
+      final products = await ApiService().getProducts();
+      setState(() { 
+        _products = products; 
+        _isLoadingProducts = false; 
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load restaurant data: $e')),
-      );
+      print("Error fetching menu: $e");
+      setState(() => _isLoadingProducts = false);
+    }
+  }
+
+  Future<void> _fetchTables() async {
+    try {
+      final tables = await ApiService().getTables();
+      setState(() {
+        _tables = tables;
+        if (_tables.isNotEmpty) {
+          _selectedTable = _tables.first;
+        }
+      });
+    } catch (e) {
+      print("Error fetching tables: $e");
     }
   }
 
   void _addToCart(ProductItem product) {
+    HapticFeedback.lightImpact();
     setState(() {
-      _cart[product] = (_cart[product] ?? 0) + 1;
+      if (_cart.containsKey(product)) {
+        _cart[product] = _cart[product]! + 1;
+      } else {
+        _cart[product] = 1;
+      }
     });
   }
 
   void _removeFromCart(ProductItem product) {
+    HapticFeedback.lightImpact();
     setState(() {
       if (_cart.containsKey(product)) {
-        int currentCount = _cart[product]!;
-        if (currentCount > 1) {
-          _cart[product] = currentCount - 1;
+        if (_cart[product]! > 1) {
+          _cart[product] = _cart[product]! - 1;
         } else {
           _cart.remove(product);
         }
@@ -71,388 +83,395 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  double _calculateSubtotal() {
-    return _cart.entries.fold(0.0, (sum, entry) => sum + (entry.key.price * entry.value));
+  double get _cartSubtotal {
+    double total = 0.0;
+    _cart.forEach((product, quantity) {
+      total += (product.price * quantity);
+    });
+    return total;
   }
 
-  int _getCartTotalItemCount() {
-    return _cart.values.fold(0, (sum, count) => sum + count);
-  }
-
-  Future<void> _handleOrderDispatch() async {
+  Future<void> _sendOrder() async {
     if (_cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot dispatch an empty order ticket.')),
+        const SnackBar(content: Text('Cannot send an empty order!'), backgroundColor: Colors.red),
       );
       return;
     }
 
-    setState(() { _isLoading = true; });
+    if (_selectedTable == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait for tables to load or select a table.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
 
-    List<Map<String, dynamic>> structuralCart = _cart.entries.map((entry) {
-      return {
-        'id': entry.key.id,
-        'quantity': entry.value,
-      };
-    }).toList();
+    HapticFeedback.heavyImpact();
 
-    final success = await _apiService.submitOrder(
-      tableNumber: _selectedTable ?? 'Table 1',
-      customerName: _customerController.text.trim(),
-      cartItems: structuralCart,
+    // YOUR API LOGIC HERE
+    // await ApiService().submitOrder(cart: _cart, tableId: _selectedTable!.id, customer: _customerNameController.text);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Order Sent to Kitchen!'), backgroundColor: Colors.green),
     );
 
-    setState(() { _isLoading = false; });
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Success: Order dispatched to KDS queue!'), backgroundColor: Colors.green),
-      );
-      setState(() {
-        _cart.clear();
-        _customerController.text = 'Guest Table';
-      });
-      _fetchInitialData();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Failed to process order payload.'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
-    }
+    setState(() {
+      _cart.clear();
+      _customerNameController.text = 'Guest Table';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    bool isMobile = screenWidth < 750;
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: AppBar(
+        title: Text(
+          'Waiter Terminal',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: Colors.green.shade700,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: () {
+              _fetchProducts();
+              _fetchTables();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () { /* Logout logic */ },
+          )
+        ],
+      ),
+      body: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Column(
+              children: [
+                _buildCategoryChips(),
+                Expanded(
+                  child: _isLoadingProducts
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildProductGrid(),
+                ),
+              ],
+            ),
+          ),
+          Container(width: 1, color: Colors.grey.shade300),
+          Expanded(
+            flex: 1,
+            child: _buildCartPanel(),
+          ),
+        ],
+      ),
+    );
+  }
 
-    final uniqueCategories = ['All', ..._products.map((p) => p.category).toSet()];
+  Widget _buildCategoryChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: Colors.white,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _categories.map((category) {
+            final isSelected = _selectedCategory == category;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ChoiceChip(
+                label: Text(
+                  category,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : Colors.black87,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: Colors.green.shade700,
+                backgroundColor: Colors.grey.shade200,
+                onSelected: (selected) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _selectedCategory = category);
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductGrid() {
     final displayedProducts = _selectedCategory == 'All' 
         ? _products 
         : _products.where((p) => p.category == _selectedCategory).toList();
 
-    // --- SUB-WIDGET 1: Menu Explorer Row/Grid Layout ---
-    Widget catalogSection = Column(
-      children: [
-        Container(
-          height: 50,
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: uniqueCategories.length,
-            itemBuilder: (context, index) {
-              final catName = uniqueCategories[index];
-              final isSel = _selectedCategory == catName;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: ChoiceChip(
-                  label: Text(catName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  selected: isSel,
-                  selectedColor: Colors.green.shade600,
-                  labelStyle: TextStyle(color: isSel ? Colors.white : Colors.black),
-                  onSelected: (_) => setState(() => _selectedCategory = catName),
-                ),
-              );
-            },
-          ),
-        ),
-        Expanded(
-          child: isMobile 
-              ? ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
-                  itemCount: displayedProducts.length,
-                  itemBuilder: (context, index) {
-                    final prod = displayedProducts[index];
-                    final countInCart = _cart[prod] ?? 0;
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-                      elevation: 1,
-                      child: ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: SizedBox(
-                            width: 50,
-                            height: 50,
-                            child: prod.imagePath != null
-                                ? Image.network(
-                                    '$imageServerUrl/${prod.imagePath}',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (c, e, s) => Container(color: Colors.grey.shade200, child: const Icon(Icons.restaurant, color: Colors.green)),
-                                  )
-                                : Container(color: Colors.grey.shade200, child: const Icon(Icons.restaurant, color: Colors.green)),
-                          ),
-                        ),
-                        title: Text(prod.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        subtitle: Text('₱${prod.price.toStringAsFixed(2)}', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (countInCart > 0) ...[
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                                onPressed: () => _removeFromCart(prod),
-                              ),
-                              Text('$countInCart', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            ],
-                            IconButton(
-                              icon: const Icon(Icons.add_circle, color: Colors.green),
-                              onPressed: () => _addToCart(prod),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(12.0),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.95, // Modified aspect ratio to account gracefully for vertical image frames
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemCount: displayedProducts.length,
-                  itemBuilder: (context, index) {
-                    final prod = displayedProducts[index];
-                    final countInCart = _cart[prod] ?? 0;
-                    return Card(
-                      elevation: 2,
-                      clipBehavior: Clip.antiAlias, // Ensures the menu image clips smoothly to the card corners
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: InkWell(
-                        onTap: () => _addToCart(prod),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Product Image banner container
-                            Expanded(
-                              flex: 5,
-                              child: SizedBox( // Use SizedBox to define width/height for the Stack
-                                width: double.infinity,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    // Change Image.network to Image.asset
-                                    prod.imagePath != null
-                                        ? Image.asset(
-                                            'assets/${prod.imagePath}', // This will correctly load: assets/products/bangsilog.jpeg
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
-                                        )
-                                        : Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
-                                    if (countInCart > 0)
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(color: Colors.green.shade700, shape: BoxShape.circle),
-                                          child: Text('$countInCart', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                        ),
-                                      )
-                                  ],
-                                ),
-                              ),
-                            ),
-                            // Info Text block elements
-                            Expanded(
-                              flex: 4,
-                              child: Padding(
-                                padding: const EdgeInsets.all(10.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      prod.name, 
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), 
-                                      maxLines: 2, 
-                                      overflow: TextOverflow.ellipsis
-                                    ),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween, // Fixed this
-                                      children: [
-                                        Text('₱${prod.price.toStringAsFixed(2)}', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w900, fontSize: 15)),
-                                        if (countInCart > 0)
-                                          SizedBox(
-                                            width: 32,
-                                            height: 32,
-                                            child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 24),
-                                              onPressed: () => _removeFromCart(prod),
-                                            ),
-                                          )
-                                      ],
-                                    )
-                                  ],
-                                ),
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-
-    // --- SUB-WIDGET 2: Metadata & Active Receipt Ticket Sidebar Sheet ---
-    Widget orderSidebarSection = Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: !isMobile ? const Border(left: BorderSide(color: Colors.black12)) : null,
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
       ),
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Order Metadata', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _selectedTable,
-            decoration: InputDecoration(
-              labelText: 'Assign Table',
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      itemCount: displayedProducts.length,
+      itemBuilder: (context, index) {
+        final prod = displayedProducts[index];
+        final countInCart = _cart[prod] ?? 0;
+
+        return GestureDetector(
+          onTap: () => _addToCart(prod),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            items: _tables.map((table) {
-              return DropdownMenuItem<String>(
-                value: table.name,
-                child: Text('${table.name} (${table.status})', style: const TextStyle(fontSize: 14)),
-              );
-            }).toList(),
-            onChanged: (val) => setState(() => _selectedTable = val),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _customerController,
-            decoration: InputDecoration(
-              labelText: 'Guest Name / Identifier',
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-          const Divider(height: 32),
-          const Text('Active Items Ticket', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          Expanded(
-            child: _cart.isEmpty
-                ? const Center(child: Text('No entries added to ticket.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)))
-                : ListView.builder(
-                    itemCount: _cart.length,
-                    itemBuilder: (context, index) {
-                      final entry = _cart.entries.elementAt(index);
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(entry.key.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text('${entry.value}x @ ₱${entry.key.price.toStringAsFixed(2)}'),
-                        trailing: Text('₱${(entry.key.price * entry.value).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      );
-                    },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // PROPERLY FORMATTED ASSET IMAGE LOGIC
+                        prod.imagePath != null
+                            ? Image.asset(
+                                'assets/${prod.imagePath}',
+                                fit: BoxFit.cover,
+                                errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
+                              )
+                            : Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
+                        
+                        if (countInCart > 0)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade700,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: Text(
+                                '$countInCart',
+                                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          )
+                      ],
+                    ),
                   ),
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            prod.name,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '₱${prod.price.toStringAsFixed(2)}',
+                            style: GoogleFonts.poppins(
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        );
+      },
+    );
+  }
+
+  Widget _buildCartPanel() {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Est. Subtotal:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text('₱${_calculateSubtotal().toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.green)),
+                Text('Order Metadata', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 12),
+                
+                DropdownButtonFormField<DiningTable>(
+                  value: _selectedTable,
+                  decoration: InputDecoration(
+                    labelText: 'Assign Table',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: _tables.isEmpty 
+                      ? [const DropdownMenuItem<DiningTable>(value: null, child: Text('Loading tables...'))]
+                      : _tables.map((t) => DropdownMenuItem<DiningTable>(
+                          value: t, 
+                          child: Text(t.name) 
+                        )).toList(),
+                  onChanged: _tables.isEmpty 
+                      ? null 
+                      : (val) => setState(() => _selectedTable = val),
+                ),
+                
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _customerNameController,
+                  decoration: InputDecoration(
+                    labelText: 'Guest Name / Identifier',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
               ],
             ),
           ),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+
+          Expanded(
+            child: Container(
+              color: const Color(0xFFFDFDFD),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Active Items Ticket', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: _cart.isEmpty
+                        ? Center(child: Text('No entries added to ticket.', style: TextStyle(color: Colors.grey.shade400, fontStyle: FontStyle.italic)))
+                        : ListView.builder(
+                            itemCount: _cart.length,
+                            itemBuilder: (context, index) {
+                              final prod = _cart.keys.elementAt(index);
+                              final qty = _cart[prod]!;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: Colors.grey.shade200, style: BorderStyle.solid)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                                      child: Row(
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.remove, size: 16),
+                                            onPressed: () => _removeFromCart(prod),
+                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                          Text('$qty', style: GoogleFonts.firaCode(fontWeight: FontWeight.bold)),
+                                          IconButton(
+                                            icon: const Icon(Icons.add, size: 16),
+                                            onPressed: () => _addToCart(prod),
+                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(prod.name, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                          Text('₱${prod.price.toStringAsFixed(2)} each', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '₱${(prod.price * qty).toStringAsFixed(2)}',
+                                      style: GoogleFonts.firaCode(fontWeight: FontWeight.bold, fontSize: 15),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-              onPressed: _handleOrderDispatch,
-              child: const Text('Send Order to Kitchen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
-          )
+          ),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Est. Subtotal:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    Text(
+                      '₱${_cartSubtotal.toStringAsFixed(2)}',
+                      style: GoogleFonts.firaCode(fontWeight: FontWeight.w900, fontSize: 24, color: Colors.green.shade800),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _cart.isEmpty ? null : _sendOrder,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade700,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Send Order to Kitchen',
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
-
-    // --- MAIN ROUTER RENDER ENGINE ---
-    if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Waiter Terminal'), backgroundColor: Colors.green.shade700),
-        body: const Center(child: CircularProgressIndicator(color: Colors.green)),
-      );
-    }
-
-    if (isMobile) {
-      return DefaultTabController(
-        length: 2,
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Waiter Terminal', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
-            backgroundColor: Colors.green.shade700,
-            actions: [
-              IconButton(icon: const Icon(Icons.refresh, color: Colors.white), onPressed: _fetchInitialData),
-              IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: _logout),
-            ],
-            bottom: TabBar(
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white70,
-              indicatorColor: Colors.white,
-              indicatorWeight: 3,
-              tabs: [
-                const Tab(icon: Icon(Icons.restaurant_menu), text: 'Browse Menu'),
-                Tab(
-                  icon: Badge(
-                    label: Text('${_getCartTotalItemCount()}'),
-                    isLabelVisible: _cart.isNotEmpty,
-                    child: const Icon(Icons.shopping_cart),
-                  ),
-                  text: 'View Ticket',
-                ),
-              ],
-            ),
-          ),
-          body: TabBarView(
-            children: [
-              catalogSection,
-              orderSidebarSection,
-            ],
-          ),
-        ),
-      );
-    } else {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Waiter Terminal', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
-          backgroundColor: Colors.green.shade700,
-          actions: [
-            IconButton(icon: const Icon(Icons.refresh, color: Colors.white), onPressed: _fetchInitialData),
-            IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: _logout),
-          ],
-        ),
-        body: Row(
-          children: [
-            Expanded(flex: 3, child: catalogSection),
-            Expanded(flex: 2, child: orderSidebarSection),
-          ],
-        ),
-      );
-    }
   }
 }

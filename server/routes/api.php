@@ -10,6 +10,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\DiningTableController;
 
 // Public route (anyone can try to log in)
 Route::post('/login', [AuthController::class, 'login']);
@@ -23,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/active', [OrderController::class, 'activeOrders']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
     Route::patch('/tables/{id}/status', [TableController::class, 'updateStatus']);
+    Route::get('/tables', [DiningTableController::class, 'index']);
     Route::get('/tables', [TableController::class, 'index']);
     Route::patch('/inventory/{id}/stock', [InventoryController::class, 'updateStock']);
     Route::get('/inventory', [InventoryController::class, 'index']);
