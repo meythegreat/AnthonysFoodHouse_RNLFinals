@@ -12,10 +12,24 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DiningTableController;
 
-// Public route (anyone can try to log in)
+// ==========================================
+// 1. PUBLIC ROUTES (No Login Required)
+// ==========================================
+
 Route::post('/login', [AuthController::class, 'login']);
 
-// Protected routes (must be logged in via Sanctum to access these)
+// Moved outside the middleware so Flutter can grab it on boot!
+Route::get('/tax-rate', function () {
+    $taxSetting = \App\Models\Setting::where('key', 'tax_rate')->first();
+    // Convert 1% to 0.01 for Flutter. Default to 0 if not found.
+    $taxPercentage = $taxSetting ? (floatval($taxSetting->value) / 100) : 0;
+
+    return response()->json(['tax_rate' => $taxPercentage]);
+});
+
+// ==========================================
+// 2. PROTECTED ROUTES (Sanctum Login Required)
+// ==========================================
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -46,6 +60,4 @@ Route::middleware('auth:sanctum')->group(function () {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Successfully logged out']);
     });
-
-    // We will add the POS, Menu, and Inventory routes here later!
 });

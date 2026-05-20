@@ -25,11 +25,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Map<ProductItem, int> _cart = {}; 
   final TextEditingController _customerNameController = TextEditingController(text: 'Guest Table');
 
+  // --- DYNAMIC TAX RATE ---
+  // Defaults to 1% (0.01) but will instantly update when _fetchTaxRate() hits Laravel
+  double _taxRate = 0.01; 
+
   @override
   void initState() {
     super.initState();
     _fetchProducts();
     _fetchTables(); 
+    _fetchTaxRate(); // Automatically pull the live global VAT on boot
   }
 
   Future<void> _fetchProducts() async {
@@ -59,6 +64,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // --- NEW: FETCH TAX RATE FROM LARAVEL ---
+  Future<void> _fetchTaxRate() async {
+    try {
+      final rate = await ApiService().getTaxRate();
+      setState(() {
+        _taxRate = rate;
+      });
+    } catch (e) {
+      print("Error setting tax state: $e");
+    }
+  }
+
   void _addToCart(ProductItem product) {
     HapticFeedback.lightImpact();
     setState(() {
@@ -83,6 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  // --- Financial Math Calculations ---
   double get _cartSubtotal {
     double total = 0.0;
     _cart.forEach((product, quantity) {
@@ -90,6 +108,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     return total;
   }
+
+  double get _cartTax => _cartSubtotal * _taxRate;
+
+  double get _cartTotal => _cartSubtotal + _cartTax;
 
   Future<void> _sendOrder() async {
     if (_cart.isEmpty) {
@@ -108,7 +130,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     HapticFeedback.heavyImpact();
 
-    // 1. Format the cart for Laravel
     final cartList = _cart.entries.map((entry) {
       return {
         'id': entry.key.id,
@@ -116,17 +137,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       };
     }).toList();
 
-    // 2. Actually trigger the API Call
     bool success = await ApiService().submitOrder(
       tableNumber: _selectedTable!.name,
       customerName: _customerNameController.text,
       cartItems: cartList,
     );
 
-    // 3. Clear the UI only if successful
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Order Sent to Kitchen & Telegram!'), backgroundColor: Colors.green),
+        const SnackBar(content: Text('Order Sent to Kitchen!'), backgroundColor: Colors.green),
       );
 
       setState(() {
@@ -143,11 +162,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: const Color(0xFFF4F6F8), 
       appBar: AppBar(
-        title: Text(
-          'Waiter Terminal',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white),
+        title: Row(
+          children: [
+            const Icon(Icons.point_of_sale, color: Colors.white),
+            const SizedBox(width: 12),
+            Text(
+              'Waiter Terminal',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
         ),
         backgroundColor: Colors.green.shade700,
         elevation: 0,
@@ -157,6 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () {
               _fetchProducts();
               _fetchTables();
+              _fetchTaxRate(); // Refresh grabs the latest tax rate too!
             },
           ),
           IconButton(
@@ -193,7 +219,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildCategoryChips() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
+        ],
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -205,13 +236,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: Text(
                   category,
                   style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     color: isSelected ? Colors.white : Colors.black87,
                   ),
                 ),
                 selected: isSelected,
                 selectedColor: Colors.green.shade700,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: Colors.grey.shade100,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                side: BorderSide(color: isSelected ? Colors.green.shade700 : Colors.grey.shade300),
                 onSelected: (selected) {
                   HapticFeedback.selectionClick();
                   setState(() => _selectedCategory = category);
@@ -250,8 +283,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 12,
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
               ],
@@ -266,7 +299,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // PROPERLY FORMATTED ASSET IMAGE LOGIC
                         prod.imagePath != null
                             ? Image.asset(
                                 'assets/${prod.imagePath}',
@@ -285,6 +317,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 color: Colors.green.shade700,
                                 shape: BoxShape.circle,
                                 border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))],
                               ),
                               child: Text(
                                 '$countInCart',
@@ -305,7 +338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         children: [
                           Text(
                             prod.name,
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -313,7 +346,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             '₱${prod.price.toStringAsFixed(2)}',
                             style: GoogleFonts.poppins(
                               color: Colors.green.shade800,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                               fontSize: 16,
                             ),
                           ),
@@ -339,30 +372,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              boxShadow: [BoxShadow(color: Colors.grey.shade200, blurRadius: 4, offset: const Offset(0, 2))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Order Metadata', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.assignment, color: Colors.green.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Text('Order Details', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 
                 DropdownButtonFormField<DiningTable>(
                   value: _selectedTable,
                   decoration: InputDecoration(
                     labelText: 'Assign Table',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   items: _tables.isEmpty 
                       ? [const DropdownMenuItem<DiningTable>(value: null, child: Text('Loading tables...'))]
                       : _tables.map((t) => DropdownMenuItem<DiningTable>(
                           value: t, 
-                          child: Text(t.name) 
+                          child: Text(t.name, style: GoogleFonts.poppins(fontWeight: FontWeight.w500)) 
                         )).toList(),
-                  onChanged: _tables.isEmpty 
-                      ? null 
-                      : (val) => setState(() => _selectedTable = val),
+                  onChanged: _tables.isEmpty ? null : (val) => setState(() => _selectedTable = val),
                 ),
                 
                 const SizedBox(height: 12),
@@ -370,8 +409,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   controller: _customerNameController,
                   decoration: InputDecoration(
                     labelText: 'Guest Name / Identifier',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    prefixIcon: Icon(Icons.person_outline, color: Colors.grey.shade500),
                   ),
                 ),
               ],
@@ -385,11 +427,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Active Items Ticket', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                  Text('Current Ticket', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
                   const SizedBox(height: 16),
                   Expanded(
                     child: _cart.isEmpty
-                        ? Center(child: Text('No entries added to ticket.', style: TextStyle(color: Colors.grey.shade400, fontStyle: FontStyle.italic)))
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
+                                const SizedBox(height: 12),
+                                Text('No items added yet', style: TextStyle(color: Colors.grey.shade400, fontStyle: FontStyle.italic)),
+                              ],
+                            ),
+                          )
                         : ListView.builder(
                             itemCount: _cart.length,
                             itemBuilder: (context, index) {
@@ -399,24 +450,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.only(bottom: 12),
                                 decoration: BoxDecoration(
-                                  border: Border(bottom: BorderSide(color: Colors.grey.shade200, style: BorderStyle.solid)),
+                                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
                                 ),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Container(
-                                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade50, 
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.green.shade100)
+                                      ),
                                       child: Row(
                                         children: [
                                           IconButton(
-                                            icon: const Icon(Icons.remove, size: 16),
+                                            icon: Icon(Icons.remove, size: 16, color: Colors.green.shade800),
                                             onPressed: () => _removeFromCart(prod),
                                             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                             padding: EdgeInsets.zero,
                                           ),
-                                          Text('$qty', style: GoogleFonts.firaCode(fontWeight: FontWeight.bold)),
+                                          Text('$qty', style: GoogleFonts.firaCode(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
                                           IconButton(
-                                            icon: const Icon(Icons.add, size: 16),
+                                            icon: Icon(Icons.add, size: 16, color: Colors.green.shade800),
                                             onPressed: () => _addToCart(prod),
                                             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                             padding: EdgeInsets.zero,
@@ -429,14 +484,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(prod.name, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                                          Text('₱${prod.price.toStringAsFixed(2)} each', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                          Text(prod.name, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13)),
+                                          Text('₱${prod.price.toStringAsFixed(2)} each', style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                         ],
                                       ),
                                     ),
                                     Text(
                                       '₱${(prod.price * qty).toStringAsFixed(2)}',
-                                      style: GoogleFonts.firaCode(fontWeight: FontWeight.bold, fontSize: 15),
+                                      style: GoogleFonts.firaCode(fontWeight: FontWeight.bold, fontSize: 14),
                                     ),
                                   ],
                                 ),
@@ -450,24 +505,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
 
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
+              borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -4))],
             ),
             child: Column(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Est. Subtotal:', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    Text('Subtotal', style: GoogleFonts.poppins(color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                    Text('₱${_cartSubtotal.toStringAsFixed(2)}', style: GoogleFonts.firaCode(color: Colors.grey.shade700)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('VAT (${(_taxRate * 100).toInt()}%)', style: GoogleFonts.poppins(color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                    Text('₱${_cartTax.toStringAsFixed(2)}', style: GoogleFonts.firaCode(color: Colors.grey.shade700)),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Divider(color: Colors.grey.shade200, thickness: 1.5),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Total', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
                     Text(
-                      '₱${_cartSubtotal.toStringAsFixed(2)}',
-                      style: GoogleFonts.firaCode(fontWeight: FontWeight.w900, fontSize: 24, color: Colors.green.shade800),
+                      '₱${_cartTotal.toStringAsFixed(2)}',
+                      style: GoogleFonts.firaCode(fontWeight: FontWeight.w900, fontSize: 26, color: Colors.green.shade800),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -477,12 +552,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       backgroundColor: Colors.green.shade700,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: Colors.grey.shade300,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), 
                       elevation: 0,
                     ),
-                    child: Text(
-                      'Send Order to Kitchen',
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.send, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Send Order to Kitchen', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ],
                     ),
                   ),
                 ),

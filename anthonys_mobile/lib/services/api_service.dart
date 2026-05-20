@@ -101,4 +101,26 @@ class ApiService {
     }
   }
 
+  // Action 4: GET Tax Rate
+  Future<double> getTaxRate() async {
+    try {
+      // FIXED: Removed the extra /api since baseUrl already has it!
+      // Also added the Accept header to prevent HTML error pages
+      final response = await http.get(
+        Uri.parse('$baseUrl/tax-rate'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return double.parse(data['tax_rate'].toString());
+      } else {
+        print('Failed to load tax rate. Status: ${response.statusCode}');
+        return 0.01; // Fallback to 1% if it fails
+      }
+    } catch (e) {
+      print('Error fetching tax rate: $e');
+      return 0.01; 
+    }
+  }
 }
