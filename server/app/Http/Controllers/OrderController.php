@@ -109,7 +109,7 @@ class OrderController extends Controller
 
             $order = $result['order'];
 
-            Http::post('http://127.0.0.1:5678/webhook-test/8cdb04f2-6067-47e9-b8af-ffe8d453e192', [ //Group Workflow
+            Http::post('http://127.0.0.1:5678/webhook/8cdb04f2-6067-47e9-b8af-ffe8d453e192', [ //Group Workflow
                 'order_id' => $order->id,
                 'customer' => $order->customer_name,
                 'sub_total' => number_format($order->sub_total, 2, '.', ''),
@@ -120,7 +120,7 @@ class OrderController extends Controller
                 'items' => $orderItemsData
             ]);
 
-            Http::post('http://localhost:5678/webhook-test/41a22261-8226-4aee-ad3a-16384c3d1e83', [ // Basinillo Individual Workflow
+            Http::post('http://localhost:5678/webhook/41a22261-8226-4aee-ad3a-16384c3d1e83', [ // Basinillo Individual Workflow
                 'order_id' => $order->id,
                 'customer' => $order->customer_name,
                 'sub_total' => number_format($order->sub_total, 2, '.', ''),

@@ -108,17 +108,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     HapticFeedback.heavyImpact();
 
-    // YOUR API LOGIC HERE
-    // await ApiService().submitOrder(cart: _cart, tableId: _selectedTable!.id, customer: _customerNameController.text);
+    // 1. Format the cart for Laravel
+    final cartList = _cart.entries.map((entry) {
+      return {
+        'id': entry.key.id,
+        'quantity': entry.value,
+      };
+    }).toList();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Order Sent to Kitchen!'), backgroundColor: Colors.green),
+    // 2. Actually trigger the API Call
+    bool success = await ApiService().submitOrder(
+      tableNumber: _selectedTable!.name,
+      customerName: _customerNameController.text,
+      cartItems: cartList,
     );
 
-    setState(() {
-      _cart.clear();
-      _customerNameController.text = 'Guest Table';
-    });
+    // 3. Clear the UI only if successful
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order Sent to Kitchen & Telegram!'), backgroundColor: Colors.green),
+      );
+
+      setState(() {
+        _cart.clear();
+        _customerNameController.text = 'Guest Table';
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send order. Check server.'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
