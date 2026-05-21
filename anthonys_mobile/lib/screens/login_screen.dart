@@ -103,13 +103,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // --- BRANDING ---
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.restaurant, size: 48, color: Colors.green.shade700),
+                    Image.asset(
+                      'assets/anthonys-logo.png',
+                      height: 100,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Fallback icon just in case the file name is misspelled or missing
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade100,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.restaurant, size: 48, color: Colors.green.shade700),
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                     Text(
