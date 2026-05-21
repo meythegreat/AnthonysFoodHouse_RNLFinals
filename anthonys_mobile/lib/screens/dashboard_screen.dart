@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/restaurant_models.dart';
 import '../services/api_service.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
 
@@ -24,6 +26,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   final Map<ProductItem, int> _cart = {}; 
   final TextEditingController _customerNameController = TextEditingController(text: 'Guest Table');
+  // NEW LINE: This will hold the "setState" specifically for the mobile bottom sheet
+  StateSetter? _bottomSheetState;
 
   // --- DYNAMIC TAX RATE ---
   // Defaults to 1% (0.01) but will instantly update when _fetchTaxRate() hits Laravel
@@ -78,6 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _addToCart(ProductItem product) {
     HapticFeedback.lightImpact();
+    
+    // 1. Update the main screen
     setState(() {
       if (_cart.containsKey(product)) {
         _cart[product] = _cart[product]! + 1;
@@ -85,10 +91,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _cart[product] = 1;
       }
     });
+
+    // 2. NEW: If the mobile bottom sheet is open, force it to redraw too!
+    if (_bottomSheetState != null) {
+      _bottomSheetState!((){});
+    }
   }
 
   void _removeFromCart(ProductItem product) {
     HapticFeedback.lightImpact();
+    
+    // 1. Update the main screen
     setState(() {
       if (_cart.containsKey(product)) {
         if (_cart[product]! > 1) {
@@ -98,6 +111,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     });
+
+    // 2. NEW: If the mobile bottom sheet is open, force it to redraw too!
+    if (_bottomSheetState != null) {
+      _bottomSheetState!((){});
+    }
   }
 
   // --- Financial Math Calculations ---
@@ -159,8 +177,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _handleLogout() async {
+    HapticFeedback.mediumImpact();
+    
+    // 1. Show a confirmation dialog
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Logout', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to exit the Waiter Terminal?', style: GoogleFonts.poppins()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+            ),
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    // 2. If they click "Logout", execute the kill sequence
+    if (confirm == true) {
+      // Call the API service to destroy the token
+      await ApiService().logout();
+
+      // Clear local state
+      if (mounted) {
+        // Kick them back to the login screen! 
+        // NOTE: Change '/login' to whatever your initial route or Login Screen is named!
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+      }
+    }
+  }
+
+  // ==========================================
+  // RESPONSIVE BUILD METHOD
+  // ==========================================
   @override
   Widget build(BuildContext context) {
+    // Determine if the screen is wide (Tablet/Web) or narrow (Phone)
+    final isWideScreen = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8), 
       appBar: AppBar(
@@ -187,33 +252,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () { /* Logout logic */ },
+            onPressed: () { _handleLogout(); },
           )
         ],
       ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Column(
+      
+      // DYNAMIC BODY (Row on Tablet, Full Menu on Phone)
+      body: isWideScreen
+          ? Row(
               children: [
-                _buildCategoryChips(),
-                Expanded(
-                  child: _isLoadingProducts
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildProductGrid(),
-                ),
+                Expanded(flex: 2, child: _buildMenuSection()),
+                Container(width: 1, color: Colors.grey.shade300),
+                Expanded(flex: 1, child: _buildCartPanel()),
               ],
+            )
+          : _buildMenuSection(),
+
+      // FLOATING CART BUTTON (Only shows on narrow phones)
+      floatingActionButton: isWideScreen 
+          ? null 
+          : FloatingActionButton.extended(
+              onPressed: () => _showMobileCartSheet(context),
+              backgroundColor: Colors.green.shade800,
+              icon: const Icon(Icons.shopping_cart, color: Colors.white),
+              label: Text(
+                '${_cart.length} Items  •  ₱${_cartTotal.toStringAsFixed(2)}',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white),
+              ),
             ),
-          ),
-          Container(width: 1, color: Colors.grey.shade300),
-          Expanded(
-            flex: 1,
-            child: _buildCartPanel(),
-          ),
-        ],
-      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
+  }
+
+  // ==========================================
+  // HELPER WIDGETS
+  // ==========================================
+
+  // Wrapped the menu into a helper so both phone and tablet can use it
+  Widget _buildMenuSection() {
+    return Column(
+      children: [
+        _buildCategoryChips(),
+        Expanded(
+          child: _isLoadingProducts
+              ? const Center(child: CircularProgressIndicator())
+              : _buildProductGrid(),
+        ),
+      ],
+    );
+  }
+
+  // Slide-up bottom sheet for the cart on small phones
+  void _showMobileCartSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, 
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            
+            _bottomSheetState = setModalState; // <--- NEW: Save the state reference!
+
+            return FractionallySizedBox(
+              heightFactor: 0.85, 
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                child: Scaffold( 
+                  backgroundColor: Colors.white,
+                  body: _buildCartPanel()
+                ),
+              ),
+            );
+          }
+        );
+      },
+    ).whenComplete(() {
+      _bottomSheetState = null; // <--- NEW: Clear the reference when closed
+      setState(() {}); 
+    });
   }
 
   Widget _buildCategoryChips() {
@@ -264,8 +381,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      // NEW: Responsive grid columns (3 for tablet, 2 for phone)
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2, 
         childAspectRatio: 0.85,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,

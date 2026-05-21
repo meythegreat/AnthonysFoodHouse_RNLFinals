@@ -123,4 +123,27 @@ class ApiService {
       return 0.01; 
     }
   }
+
+  // Action 5: POST Logout (Kill Token)
+  Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token != null) {
+        await http.post(
+          Uri.parse('$baseUrl/logout'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        );
+        // Clear the token locally regardless of API response
+        await prefs.remove('token');
+      }
+    } catch (e) {
+      print('Error during logout: $e');
+    }
+  }
+  
 }
