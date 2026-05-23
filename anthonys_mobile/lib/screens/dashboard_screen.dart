@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/restaurant_models.dart';
 import '../services/api_service.dart';
-
-import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -26,11 +25,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   final Map<ProductItem, int> _cart = {}; 
   final TextEditingController _customerNameController = TextEditingController(text: 'Guest Table');
-  // NEW LINE: This will hold the "setState" specifically for the mobile bottom sheet
-  StateSetter? _bottomSheetState;
+
+  // Tracks the state of the mobile bottom sheet for real-time updates
+  StateSetter? _bottomSheetState; 
 
   // --- DYNAMIC TAX RATE ---
-  // Defaults to 1% (0.01) but will instantly update when _fetchTaxRate() hits Laravel
   double _taxRate = 0.01; 
 
   @override
@@ -38,7 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _fetchProducts();
     _fetchTables(); 
-    _fetchTaxRate(); // Automatically pull the live global VAT on boot
+    _fetchTaxRate();
   }
 
   Future<void> _fetchProducts() async {
@@ -68,7 +67,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // --- NEW: FETCH TAX RATE FROM LARAVEL ---
   Future<void> _fetchTaxRate() async {
     try {
       final rate = await ApiService().getTaxRate();
@@ -82,8 +80,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _addToCart(ProductItem product) {
     HapticFeedback.lightImpact();
-    
-    // 1. Update the main screen
     setState(() {
       if (_cart.containsKey(product)) {
         _cart[product] = _cart[product]! + 1;
@@ -92,7 +88,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
 
-    // 2. NEW: If the mobile bottom sheet is open, force it to redraw too!
     if (_bottomSheetState != null) {
       _bottomSheetState!((){});
     }
@@ -100,8 +95,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _removeFromCart(ProductItem product) {
     HapticFeedback.lightImpact();
-    
-    // 1. Update the main screen
     setState(() {
       if (_cart.containsKey(product)) {
         if (_cart[product]! > 1) {
@@ -112,13 +105,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
 
-    // 2. NEW: If the mobile bottom sheet is open, force it to redraw too!
     if (_bottomSheetState != null) {
       _bottomSheetState!((){});
     }
   }
 
-  // --- Financial Math Calculations ---
   double get _cartSubtotal {
     double total = 0.0;
     _cart.forEach((product, quantity) {
@@ -128,7 +119,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   double get _cartTax => _cartSubtotal * _taxRate;
-
   double get _cartTotal => _cartSubtotal + _cartTax;
 
   Future<void> _sendOrder() async {
@@ -170,6 +160,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _cart.clear();
         _customerNameController.text = 'Guest Table';
       });
+      if (_bottomSheetState != null) {
+        _bottomSheetState!((){});
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to send order. Check server.'), backgroundColor: Colors.red),
@@ -180,7 +173,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _handleLogout() async {
     HapticFeedback.mediumImpact();
     
-    // 1. Show a confirmation dialog
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -204,26 +196,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
 
-    // 2. If they click "Logout", execute the kill sequence
     if (confirm == true) {
-      // Call the API service to destroy the token
       await ApiService().logout();
-
-      // Clear local state
       if (mounted) {
-        // Kick them back to the login screen! 
-        // NOTE: Change '/login' to whatever your initial route or Login Screen is named!
         Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       }
     }
   }
 
-  // ==========================================
-  // RESPONSIVE BUILD METHOD
-  // ==========================================
   @override
   Widget build(BuildContext context) {
-    // Determine if the screen is wide (Tablet/Web) or narrow (Phone)
     final isWideScreen = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
@@ -231,7 +213,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.point_of_sale, color: Colors.white),
+            // --- UPDATED BRANDING ICON ---
+            Image.asset(
+              'assets/anthonys-logo.png',
+              height: 32, 
+              color: Colors.white, 
+              errorBuilder: (c, e, s) => const Icon(Icons.point_of_sale, color: Colors.white),
+            ),
             const SizedBox(width: 12),
             Text(
               'Waiter Terminal',
@@ -247,17 +235,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () {
               _fetchProducts();
               _fetchTables();
-              _fetchTaxRate(); // Refresh grabs the latest tax rate too!
+              _fetchTaxRate(); 
             },
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () { _handleLogout(); },
+            onPressed: _handleLogout,
           )
         ],
       ),
       
-      // DYNAMIC BODY (Row on Tablet, Full Menu on Phone)
       body: isWideScreen
           ? Row(
               children: [
@@ -268,7 +255,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             )
           : _buildMenuSection(),
 
-      // FLOATING CART BUTTON (Only shows on narrow phones)
       floatingActionButton: isWideScreen 
           ? null 
           : FloatingActionButton.extended(
@@ -284,11 +270,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ==========================================
-  // HELPER WIDGETS
-  // ==========================================
-
-  // Wrapped the menu into a helper so both phone and tablet can use it
   Widget _buildMenuSection() {
     return Column(
       children: [
@@ -302,7 +283,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Slide-up bottom sheet for the cart on small phones
   void _showMobileCartSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -311,9 +291,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            
-            _bottomSheetState = setModalState; // <--- NEW: Save the state reference!
-
+            _bottomSheetState = setModalState; 
             return FractionallySizedBox(
               heightFactor: 0.85, 
               child: ClipRRect(
@@ -328,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       },
     ).whenComplete(() {
-      _bottomSheetState = null; // <--- NEW: Clear the reference when closed
+      _bottomSheetState = null; 
       setState(() {}); 
     });
   }
@@ -381,10 +359,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      // NEW: Responsive grid columns (3 for tablet, 2 for phone)
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2, 
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.70, // --- FIX: NO MORE OVERFLOW ERROR ---
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -417,13 +394,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        prod.imagePath != null
-                            ? Image.asset(
-                                'assets/${prod.imagePath}',
-                                fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
-                              )
-                            : Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
+                        // --- UPDATED TO SMART IMAGE LOADER ---
+                        _buildProductImage(prod.imagePath),
                         
                         if (countInCart > 0)
                           Positioned(
@@ -478,6 +450,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  // --- SMART IMAGE HANDLER ---
+  Widget _buildProductImage(String? path) {
+    if (path == null || path.isEmpty) {
+      return Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey));
+    }
+
+    if (path.startsWith('http')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
+      );
+    }
+
+    if (path.startsWith('/storage')) {
+       return Image.network(
+        'http://192.168.254.168:8000$path',
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
+      );
+    }
+    
+    return Image.asset(
+      'assets/$path',
+      fit: BoxFit.cover,
+      errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.restaurant, size: 40, color: Colors.grey)),
     );
   }
 

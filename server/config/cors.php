@@ -6,12 +6,8 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:8080',
-        'http://127.0.0.1:8080',
-    ],
+    // CHANGED THIS LINE TO ALLOW ANY PORT:
+    'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 
@@ -21,6 +17,8 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => true,
+    // Change this to false since you are using Bearer Tokens (localStorage),
+    // not browser cookies, for authentication!
+    'supports_credentials' => false,
 
 ];
