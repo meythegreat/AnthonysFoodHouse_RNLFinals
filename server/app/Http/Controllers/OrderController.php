@@ -76,13 +76,36 @@ class OrderController extends Controller
                     // THE AUTO-DEDUCTION ENGINE
                     $recipes = \App\Models\Recipe::where('product_id', $data['product_id'])->get();
                     foreach ($recipes as $recipe) {
-                        $inventoryItem = \App\Models\InventoryItem::find($recipe->inventory_item_id);
-                        if ($inventoryItem) {
-                            $totalDeduction = $recipe->quantity_required * $data['quantity'];
-                            $inventoryItem->quantity = max(0, $inventoryItem->quantity - $totalDeduction);
-                            $inventoryItem->save();
-                        }
+
+                    $inventoryItem = \App\Models\InventoryItem::find($recipe->inventory_item_id);
+
+                    if ($inventoryItem) {
+
+                        // Calculate inventory deduction
+                        $totalDeduction = $recipe->quantity_required * $data['quantity'];
+
+                        // Deduct inventory safely
+                        $inventoryItem->quantity = max(
+                            0,
+                            $inventoryItem->quantity - $totalDeduction
+                        );
+
+                        // Save updated inventory
+                        $inventoryItem->save();
+
+                        // Trigger Low Inventory Workflow
+                        Http::post(
+                                'http://localhost:5678/webhook/2d404456-ec0f-45f8-a7b0-7885a6d6028c',
+                            [
+                                'ingredient' => $inventoryItem->name,
+                                'current_stock' => $inventoryItem->quantity,
+                                // FIX: Updated to match your actual database column!
+                                'minimum_stock' => $inventoryItem->low_stock_threshold,
+                                'unit' => $inventoryItem->unit
+                            ]
+                        );
                     }
+                }
                 }
 
                 return [
